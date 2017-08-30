@@ -2982,6 +2982,7 @@ PyDoc_STRVAR(copy__doc__,
 static PyObject *dictkeys_new(PyObject *);
 static PyObject *dictitems_new(PyObject *);
 static PyObject *dictvalues_new(PyObject *);
+static PyObject *dictfactory_new(PyTypeObject *type, PyObject *args);
 
 PyDoc_STRVAR(keys__doc__,
              "D.keys() -> a set-like object providing a view on D's keys");
@@ -3015,6 +3016,8 @@ static PyMethodDef mapp_methods[] = {
      clear__doc__},
     {"copy",            (PyCFunction)dict_copy,         METH_NOARGS,
      copy__doc__},
+    {"factory", (PyCFunction)dictfactory_new, METH_VARARGS|METH_STATIC,
+     NULL},
     {NULL,              NULL}   /* sentinel */
 };
 
@@ -4292,3 +4295,90 @@ _PyDictKeys_DecRef(PyDictKeysObject *keys)
 {
     DK_DECREF(keys);
 }
+
+typedef struct {
+    PyObject_HEAD
+    PyDictObject *template;
+    int is_tracked;
+} dictfactoryobject;
+
+static PyTypeObject dictfactory_type;
+
+static PyObject *
+dictfactory_new(PyTypeObject *type, PyObject *args)
+{
+    PyDictObject* dict = (PyDictObject*)_PyDict_FromKeys(
+        (PyObject *)&PyDict_Type, args, Py_None);
+    if (dict == NULL) {
+        return NULL;
+    }
+    PyDictKeysObject *keys = dict->ma_keys;
+    dictfactoryobject *df = PyObject_New(dictfactoryobject, &dictfactory_type);
+    if (df == NULL) {
+        Py_DECREF(dict);
+        PyErr_NoMemory();
+        return NULL;
+    }
+
+    for (Py_ssize_t i = 0; i < Py_SIZE(args); i++) {
+        PyDictKeyEntry *entry = DK_ENTRIES(keys)+i;
+        Py_DECREF(entry->me_value);
+        entry->me_value = NULL;
+    }
+    df->is_tracked = _PyObject_GC_IS_TRACKED(dict);
+    df->template = dict;
+    return (PyObject *)df;
+}
+
+static void
+dictfactory_dealloc(dictfactoryobject *df)
+{
+    Py_DECREF(df->template);
+    PyObject_Del(df);
+}
+
+static PyObject *
+dictfactory_call(dictfactoryobject *df, PyObject *args, PyObject *kw)
+{
+    Py_ssize_t size = df->template->ma_used;
+    if (Py_SIZE(args) < size) {
+        // TODO
+        return NULL;
+    }
+    Py_ssize_t keys_size = _PyDict_KeysSize(df->template->ma_keys);
+    PyDictKeysObject *keys = PyObject_MALLOC(keys_size);
+    if (keys == NULL) {
+        PyErr_NoMemory();
+        return NULL;
+    }
+    memcpy(keys, df->template->ma_keys, keys_size);
+    PyDictObject *result = (PyDictObject *)new_dict(keys, NULL);
+    PyDictKeyEntry *entries = DK_ENTRIES(keys);
+    result->ma_used = size;
+
+    int track = df->is_tracked;
+    for (Py_ssize_t i = 0; i < size; i++) {
+        PyDictKeyEntry *entry = entries + i;
+        PyObject* value = PyTuple_GET_ITEM(args, i);
+        entry->me_value = value;
+
+        Py_INCREF(entry->me_key);
+        Py_INCREF(entry->me_value);
+        track = _PyObject_GC_MAY_BE_TRACKED(value);
+    }
+    if (track) {
+        _PyObject_GC_TRACK(result);
+    }
+    return (PyObject *)result;
+}
+
+static PyTypeObject dictfactory_type = {
+    PyVarObject_HEAD_INIT(NULL, 0)
+    .tp_name = "dictfactory.dictfactory",
+    .tp_basicsize = sizeof(dictfactoryobject),
+    /* methods */
+    .tp_dealloc = (destructor)dictfactory_dealloc,
+    .tp_call = (ternaryfunc)dictfactory_call,
+    .tp_getattro = PyObject_GenericGetAttr,
+    .tp_flags = Py_TPFLAGS_DEFAULT,
+};

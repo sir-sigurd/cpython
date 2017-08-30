@@ -4190,6 +4190,25 @@ pairs within braces, for example: ``{'jack': 4098, 'sjoerd': 4127}`` or ``{4098:
       Return a new view of the dictionary's values.  See the
       :ref:`documentation of view objects <dict-views>`.
 
+   .. staticmethod:: factory(*keys)
+
+      Return a callable object that creates a dictionary from *keys* and its
+      operands.  For example:
+
+      * ``dict.factory('1', 2, (3,))({1}, [2], {3: None})`` returns
+        ``{'1': {1}, 2: [2], (3,): {3: None}}``.
+
+      * ``dict.factory((3,), '1', 2)({1}, [2], {3: None})`` returns
+        ``{(3,): {1}, '1': [2], 2: {3: None}}``.
+
+      Equivalent to::
+
+         def factory(*keys):
+             def f(*values):
+                 return dict(zip(keys, values))
+             return f
+
+
    Dictionaries compare equal if and only if they have the same ``(key,
    value)`` pairs. Order comparisons ('<', '<=', '>=', '>') raise
    :exc:`TypeError`.
