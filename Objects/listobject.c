@@ -260,11 +260,6 @@ ins1(PyListObject *self, Py_ssize_t where, PyObject *v)
         PyErr_BadInternalCall();
         return -1;
     }
-    if (n == PY_SSIZE_T_MAX) {
-        PyErr_SetString(PyExc_OverflowError,
-            "cannot add more objects to list");
-        return -1;
-    }
 
     if (list_resize(self, n+1) < 0)
         return -1;
@@ -300,11 +295,6 @@ app1(PyListObject *self, PyObject *v)
     Py_ssize_t n = PyList_GET_SIZE(self);
 
     assert (v != NULL);
-    if (n == PY_SSIZE_T_MAX) {
-        PyErr_SetString(PyExc_OverflowError,
-            "cannot add more objects to list");
-        return -1;
-    }
 
     if (list_resize(self, n+1) < 0)
         return -1;
@@ -494,8 +484,6 @@ list_concat(PyListObject *a, PyObject *bb)
         return NULL;
     }
 #define b ((PyListObject *)bb)
-    if (Py_SIZE(a) > PY_SSIZE_T_MAX - Py_SIZE(b))
-        return PyErr_NoMemory();
     size = Py_SIZE(a) + Py_SIZE(b);
     np = (PyListObject *) list_new_prealloc(size);
     if (np == NULL) {
@@ -864,7 +852,7 @@ list_extend(PyListObject *self, PyObject *iterable)
         m = Py_SIZE(self);
         /* It should not be possible to allocate a list large enough to cause
         an overflow on any relevant platform */
-        assert(m < PY_SSIZE_T_MAX - n);
+        assert((size_t)m + (size_t)n < PY_SSIZE_T_MAX);
         if (list_resize(self, m + n) < 0) {
             Py_DECREF(iterable);
             return NULL;
@@ -898,7 +886,7 @@ list_extend(PyListObject *self, PyObject *iterable)
         return NULL;
     }
     m = Py_SIZE(self);
-    if (m > PY_SSIZE_T_MAX - n) {
+    if ((size_t)m + (size_t)n > PY_SSIZE_T_MAX) {
         /* m + n overflowed; on the chance that n lied, and there really
          * is enough room, ignore it.  If n was telling the truth, we'll
          * eventually run out of memory during the loop.
@@ -961,6 +949,8 @@ _PyList_Extend(PyListObject *self, PyObject *iterable)
 static PyObject *
 list_inplace_concat(PyListObject *self, PyObject *other)
 {
+    //~ printf("%lu %lu\n", PY_SSIZE_T_MAX + PY_SSIZE_T_MAX, SIZE_MAX);
+    //~ printf("%lu\n", SIZEOF_WCHAR_T);
     PyObject *result;
 
     result = list_extend(self, other);
@@ -1540,6 +1530,7 @@ merge_freemem(MergeState *ms)
 static int
 merge_getmem(MergeState *ms, Py_ssize_t need)
 {
+    printf("%lu\n", need);
     int multiplier;
 
     assert(ms != NULL);
@@ -1552,12 +1543,14 @@ merge_getmem(MergeState *ms, Py_ssize_t need)
      * we don't care what's in the block.
      */
     merge_freemem(ms);
-    if ((size_t)need > PY_SSIZE_T_MAX / sizeof(PyObject *) / multiplier) {
+    assert(need <= PY_SSIZE_T_MAX / sizeof(PyObject *)); // CHECK
+    assert(need <= SIZE_MAX / sizeof(PyObject *) / multiplier);
+    size_t need_bytes = multiplier * (size_t)need * sizeof(PyObject *);
+    if (need_bytes > PY_SSIZE_T_MAX) {
         PyErr_NoMemory();
         return -1;
     }
-    ms->a.keys = (PyObject **)PyMem_Malloc(multiplier * need
-                                          * sizeof(PyObject *));
+    ms->a.keys = (PyObject **)PyMem_Malloc(need_bytes);
     if (ms->a.keys != NULL) {
         ms->alloced = need;
         if (ms->a.values != NULL)

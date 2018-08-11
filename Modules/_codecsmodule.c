@@ -713,8 +713,7 @@ _codecs_unicode_internal_encode_impl(PyObject *module, PyObject *obj,
         u = PyUnicode_AsUnicodeAndSize(obj, &len);
         if (u == NULL)
             return NULL;
-        if ((size_t)len > (size_t)PY_SSIZE_T_MAX / sizeof(Py_UNICODE))
-            return PyErr_NoMemory();
+        // OVERFLOW TODO: check max unicode size
         size = len * sizeof(Py_UNICODE);
         return codec_tuple(PyBytes_FromStringAndSize((const char*)u, size),
                            PyUnicode_GET_LENGTH(obj));

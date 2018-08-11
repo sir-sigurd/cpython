@@ -74,14 +74,14 @@ STRINGLIB(bytes_join)(PyObject *sep, PyObject *iterable)
         }
         nbufs = i + 1;  /* for error cleanup */
         itemlen = buffers[i].len;
-        if (itemlen > PY_SSIZE_T_MAX - sz) {
+        if ((size_t)sz + (size_t)itemlen > PY_SSIZE_T_MAX) {
             PyErr_SetString(PyExc_OverflowError,
                             "join() result is too long");
             goto error;
         }
         sz += itemlen;
         if (i != 0) {
-            if (seplen > PY_SSIZE_T_MAX - sz) {
+            if ((size_t)seplen + (size_t)sz > PY_SSIZE_T_MAX) {
                 PyErr_SetString(PyExc_OverflowError,
                                 "join() result is too long");
                 goto error;

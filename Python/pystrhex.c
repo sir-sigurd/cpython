@@ -10,7 +10,7 @@ static PyObject *_Py_strhex_impl(const char* argbuf, const Py_ssize_t arglen,
     Py_ssize_t i, j;
 
     assert(arglen >= 0);
-    if (arglen > PY_SSIZE_T_MAX / 2)
+    if ((size_t)arglen * 2 > PY_SSIZE_T_MAX)
         return PyErr_NoMemory();
 
     if (return_bytes) {

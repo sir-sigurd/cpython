@@ -206,10 +206,7 @@ write_str(stringio *self, PyObject *obj)
     len = PyUnicode_GET_LENGTH(decoded);
     assert(len >= 0);
 
-    /* This overflow check is not strictly necessary. However, it avoids us to
-       deal with funky things like comparing an unsigned and a signed
-       integer. */
-    if (self->pos > PY_SSIZE_T_MAX - len) {
+    if ((size_t)self->pos + (size_t)len > (size_t)PY_SSIZE_T_MAX) {
         PyErr_SetString(PyExc_OverflowError,
                         "new position too large");
         goto fail;

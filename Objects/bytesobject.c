@@ -72,7 +72,7 @@ _PyBytes_FromSize(Py_ssize_t size, int use_calloc)
         return (PyObject *)op;
     }
 
-    if ((size_t)size > (size_t)PY_SSIZE_T_MAX - PyBytesObject_SIZE) {
+    if ((size_t)size + PyBytesObject_SIZE > (size_t)PY_SSIZE_T_MAX) {
         PyErr_SetString(PyExc_OverflowError,
                         "byte string is too large");
         return NULL;
@@ -1356,7 +1356,7 @@ PyBytes_Repr(PyObject *obj, int smartquotes)
             if (s[i] < ' ' || s[i] >= 0x7f)
                 incr = 4; /* \xHH */
         }
-        if (newsize > PY_SSIZE_T_MAX - incr)
+        if ((size_t)newsize + incr > PY_SSIZE_T_MAX)
             goto overflow;
         newsize += incr;
     }
@@ -1364,7 +1364,7 @@ PyBytes_Repr(PyObject *obj, int smartquotes)
     if (smartquotes && squotes && !dquotes)
         quote = '"';
     if (squotes && quote == '\'') {
-        if (newsize > PY_SSIZE_T_MAX - squotes)
+        if ((size_t)newsize + (size_t)squotes > PY_SSIZE_T_MAX)
             goto overflow;
         newsize += squotes;
     }
@@ -1457,7 +1457,7 @@ bytes_concat(PyObject *a, PyObject *b)
         goto done;
     }
 
-    if (va.len > PY_SSIZE_T_MAX - vb.len) {
+    if ((size_t)va.len + (size_t)vb.len > PY_SSIZE_T_MAX) {
         PyErr_NoMemory();
         goto done;
     }
@@ -2892,7 +2892,7 @@ PyBytes_Concat(PyObject **pv, PyObject *w)
         }
 
         oldsize = PyBytes_GET_SIZE(*pv);
-        if (oldsize > PY_SSIZE_T_MAX - wb.len) {
+        if ((size_t)oldsize + (size_t)wb.len > PY_SSIZE_T_MAX) {
             PyErr_NoMemory();
             goto error;
         }
@@ -3240,7 +3240,7 @@ _PyBytesWriter_Resize(_PyBytesWriter *writer, void *str, Py_ssize_t size)
 
     allocated = size;
     if (writer->overallocate
-        && allocated <= (PY_SSIZE_T_MAX - allocated / OVERALLOCATE_FACTOR)) {
+        && (size_t)allocated + (size_t)allocated / OVERALLOCATE_FACTOR < PY_SSIZE_T_MAX) {
         /* overallocate to limit the number of realloc() */
         allocated += allocated / OVERALLOCATE_FACTOR;
     }
@@ -3312,7 +3312,7 @@ _PyBytesWriter_Prepare(_PyBytesWriter *writer, void *str, Py_ssize_t size)
         return str;
     }
 
-    if (writer->min_size > PY_SSIZE_T_MAX - size) {
+    if ((size_t)writer->min_size + (size_t)size > PY_SSIZE_T_MAX) {
         PyErr_NoMemory();
         _PyBytesWriter_Dealloc(writer);
         return NULL;

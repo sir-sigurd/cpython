@@ -253,7 +253,7 @@ _Py_Mangle(PyObject *privateobj, PyObject *ident)
     }
     plen -= ipriv;
 
-    if (plen + nlen >= PY_SSIZE_T_MAX - 1) {
+    if (plen + nlen + 1 >= PY_SSIZE_T_MAX) {
         PyErr_SetString(PyExc_OverflowError,
                         "private identifier too large to be mangled");
         return NULL;
@@ -5243,7 +5243,7 @@ assemble_emit(struct assembler *a, struct instr *i)
     if (i->i_lineno && !assemble_lnotab(a, i))
         return 0;
     if (a->a_offset + size >= len / (int)sizeof(_Py_CODEUNIT)) {
-        if (len > PY_SSIZE_T_MAX / 2)
+        if ((size_t)len * 2 > PY_SSIZE_T_MAX)
             return 0;
         if (_PyBytes_Resize(&a->a_bytecode, len * 2) < 0)
             return 0;

@@ -245,7 +245,7 @@ decode_ascii(const char *arg, wchar_t **wstr, size_t *wlen,
     wchar_t *res;
     unsigned char *in;
     wchar_t *out;
-    size_t argsize = strlen(arg) + 1;
+    size_t argsize = strlen(arg) + 1; // overflow?
 
     if (argsize > PY_SSIZE_T_MAX / sizeof(wchar_t)) {
         return -1;
@@ -341,7 +341,7 @@ decode_current_locale(const char* arg, wchar_t **wstr, size_t *wlen,
 
     /* Overallocate; as multi-byte characters are in the argument, the
        actual output could use less memory. */
-    argsize = strlen(arg) + 1;
+    argsize = strlen(arg) + 1; // overflow?
     if (argsize > PY_SSIZE_T_MAX / sizeof(wchar_t)) {
         return -1;
     }

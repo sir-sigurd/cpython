@@ -196,7 +196,7 @@ ascii_escape_unicode(PyObject *pystr)
                 d = c >= 0x10000 ? 12 : 6;
             }
         }
-        if (output_size > PY_SSIZE_T_MAX - d) {
+        if ((size_t)output_size + (size_t)d > PY_SSIZE_T_MAX) {
             PyErr_SetString(PyExc_OverflowError, "string is too long to escape");
             return NULL;
         }
@@ -262,7 +262,7 @@ escape_unicode(PyObject *pystr)
             else
                 d = 1;
         }
-        if (output_size > PY_SSIZE_T_MAX - d) {
+        if ((size_t)output_size + (size_t)d > (size_t)PY_SSIZE_T_MAX) {
             PyErr_SetString(PyExc_OverflowError, "string is too long to escape");
             return NULL;
         }

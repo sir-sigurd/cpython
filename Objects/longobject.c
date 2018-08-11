@@ -2934,7 +2934,7 @@ _PyLong_Frexp(PyLongObject *a, Py_ssize_t *e)
     /* Rescale;  make correction if result is 1.0. */
     dx /= 4.0 * EXP2_DBL_MANT_DIG;
     if (dx == 1.0) {
-        if (a_bits == PY_SSIZE_T_MAX)
+        if ((size_t)a_bits + 1 > PY_SSIZE_T_MAX)
             goto overflow;
         dx = 0.5;
         a_bits += 1;
@@ -3977,7 +3977,7 @@ long_true_divide(PyObject *v, PyObject *w)
         Py_ssize_t i, shift_digits = -shift / PyLong_SHIFT;
         digit rem;
         /* x = a << -shift */
-        if (a_size >= PY_SSIZE_T_MAX - 1 - shift_digits) {
+        if (a_size >= PY_SSIZE_T_MAX - 1 - shift_digits) { // TODO: CHECK MAX_DIGITS
             /* In practice, it's probably impossible to end up
                here.  Both a and b would have to be enormous,
                using close to SIZE_T_MAX bytes of memory each. */

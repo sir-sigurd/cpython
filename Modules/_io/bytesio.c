@@ -76,7 +76,7 @@ scan_eol(bytesio *self, Py_ssize_t len)
             len = n - start + 1;
     }
     assert(len >= 0);
-    assert(self->pos < PY_SSIZE_T_MAX - len);
+    assert(self->pos <= PY_SSIZE_T_MAX - len);
 
     return len;
 }
@@ -540,7 +540,7 @@ _io_BytesIO_readinto_impl(bytesio *self, Py_buffer *buffer)
     }
 
     memcpy(buffer->buf, PyBytes_AS_STRING(self->buf) + self->pos, len);
-    assert(self->pos + len < PY_SSIZE_T_MAX);
+    assert(self->pos <= PY_SSIZE_T_MAX - len);
     assert(len >= 0);
     self->pos += len;
 
@@ -626,7 +626,7 @@ _io_BytesIO_seek_impl(bytesio *self, Py_ssize_t pos, int whence)
        whence = 1: offset relative to current position.
        whence = 2: offset relative the end of the string. */
     if (whence == 1) {
-        if (pos > PY_SSIZE_T_MAX - self->pos) {
+        if ((size_t)self->pos + (size_t)pos > (size_t)PY_SSIZE_T_MAX) {
             PyErr_SetString(PyExc_OverflowError,
                             "new position too large");
             return NULL;
@@ -634,7 +634,7 @@ _io_BytesIO_seek_impl(bytesio *self, Py_ssize_t pos, int whence)
         pos += self->pos;
     }
     else if (whence == 2) {
-        if (pos > PY_SSIZE_T_MAX - self->string_size) {
+        if ((size_t)pos + (size_t)self->string_size > (size_t)PY_SSIZE_T_MAX) {
             PyErr_SetString(PyExc_OverflowError,
                             "new position too large");
             return NULL;

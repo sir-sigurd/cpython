@@ -860,7 +860,7 @@ array_concat(arrayobject *a, PyObject *bb)
         PyErr_BadArgument();
         return NULL;
     }
-    if (Py_SIZE(a) > PY_SSIZE_T_MAX - Py_SIZE(b)) {
+    if ((size_t)Py_SIZE(b) + (size_t)Py_SIZE(a) > PY_SSIZE_T_MAX) {
         return PyErr_NoMemory();
     }
     size = Py_SIZE(a) + Py_SIZE(b);
@@ -1004,8 +1004,7 @@ array_do_extend(arrayobject *self, PyObject *bb)
                      "can only extend with array of same kind");
         return -1;
     }
-    if ((Py_SIZE(self) > PY_SSIZE_T_MAX - Py_SIZE(b)) ||
-        ((Py_SIZE(self) + Py_SIZE(b)) > PY_SSIZE_T_MAX / self->ob_descr->itemsize)) {
+    if ((size_t)Py_SIZE(self) + (size_t)Py_SIZE(b) > PY_SSIZE_T_MAX / self->ob_descr->itemsize)) {
         PyErr_NoMemory();
         return -1;
     }

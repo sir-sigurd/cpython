@@ -460,7 +460,7 @@ mmap_resize_method(mmap_object *self,
         !is_resizeable(self)) {
         return NULL;
     }
-    if (new_size < 0 || PY_SSIZE_T_MAX - new_size < self->offset) {
+    if (new_size < 0 || (size_t)new_size + (size_t)self->offset > PY_SSIZE_T_MAX) {
         PyErr_SetString(PyExc_ValueError, "new size out of range");
         return NULL;
     }

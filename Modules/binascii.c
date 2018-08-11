@@ -450,7 +450,7 @@ binascii_a2b_base64_impl(PyObject *module, Py_buffer *data)
 
     assert(ascii_len >= 0);
 
-    if (ascii_len > PY_SSIZE_T_MAX - 3)
+    if ((size_t)ascii_len + 3 > PY_SSIZE_T_MAX)
         return PyErr_NoMemory();
 
     bin_len = ((ascii_len+3)/4)*3; /* Upper bound, corrected later */
@@ -629,7 +629,7 @@ binascii_a2b_hqx_impl(PyObject *module, Py_buffer *data)
 
     assert(len >= 0);
 
-    if (len > PY_SSIZE_T_MAX - 2)
+    if ((size_t)len + 2 > PY_SSIZE_T_MAX)
         return PyErr_NoMemory();
 
     /* Allocate a string that is too big (fixed later)
@@ -704,7 +704,7 @@ binascii_rlecode_hqx_impl(PyObject *module, Py_buffer *data)
 
     assert(len >= 0);
 
-    if (len > PY_SSIZE_T_MAX / 2 - 2)
+    if ((size_t)len * 2 > PY_SSIZE_T_MAX - 4)
         return PyErr_NoMemory();
 
     /* Worst case: output is twice as big as input (fixed later) */
@@ -768,7 +768,7 @@ binascii_b2a_hqx_impl(PyObject *module, Py_buffer *data)
 
     assert(len >= 0);
 
-    if (len > PY_SSIZE_T_MAX / 2 - 2)
+    if ((size_t)len * 2 > PY_SSIZE_T_MAX - 4)
         return PyErr_NoMemory();
 
     /* Allocate a buffer that is at least large enough */
@@ -824,7 +824,7 @@ binascii_rledecode_hqx_impl(PyObject *module, Py_buffer *data)
     /* Empty string is a special case */
     if ( in_len == 0 )
         return PyBytes_FromStringAndSize("", 0);
-    else if (in_len > PY_SSIZE_T_MAX / 2)
+    else if ((size_t)in_len * 2 > PY_SSIZE_T_MAX)
         return PyErr_NoMemory();
 
     /* Allocate a buffer of reasonable size. Resized when needed */
@@ -1421,7 +1421,7 @@ binascii_b2a_qp_impl(PyObject *module, Py_buffer *data, int quotetabs,
                 in++;
             }
         }
-        if (PY_SSIZE_T_MAX - delta < odatalen) {
+        if ((size_t)odatalen + (size_t)delta > PY_SSIZE_T_MAX) {
             PyErr_NoMemory();
             return NULL;
         }

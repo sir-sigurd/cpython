@@ -493,13 +493,7 @@ Pdata_grow(Pdata *self)
 {
     PyObject **data = self->data;
     size_t allocated = (size_t)self->allocated;
-    size_t new_allocated;
-
-    new_allocated = (allocated >> 3) + 6;
-    /* check for integer overflow */
-    if (new_allocated > (size_t)PY_SSIZE_T_MAX - allocated)
-        goto nomemory;
-    new_allocated += allocated;
+    size_t new_allocated = allocated + (allocated >> 3) + 6;
     PyMem_RESIZE(data, PyObject *, new_allocated);
     if (data == NULL)
         goto nomemory;
@@ -1054,7 +1048,7 @@ _Pickler_Write(PicklerObject *self, const char *s, Py_ssize_t data_len)
     required = self->output_len + n;
     if (required > self->max_output_len) {
         /* Make place in buffer for the pickle chunk */
-        if (self->output_len >= PY_SSIZE_T_MAX / 2 - n) {
+        if ((size_t)self->output_len + (size_t)n >= (size_t)PY_SSIZE_T_MAX / 2) {
             PyErr_NoMemory();
             return -1;
         }

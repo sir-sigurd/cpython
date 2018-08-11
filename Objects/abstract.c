@@ -2000,7 +2000,7 @@ _PySequence_IterSearch(PyObject *seq, PyObject *obj, int operation)
         if (cmp > 0) {
             switch (operation) {
             case PY_ITERSEARCH_COUNT:
-                if (n == PY_SSIZE_T_MAX) {
+                if ((size_t)n + 1 > PY_SSIZE_T_MAX) {
                     PyErr_SetString(PyExc_OverflowError,
                            "count exceeds C integer size");
                     goto Fail;

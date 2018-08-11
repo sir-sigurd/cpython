@@ -137,7 +137,7 @@ PyByteArray_FromStringAndSize(const char *bytes, Py_ssize_t size)
     }
 
     /* Prevent buffer overflow when setting alloc to size+1. */
-    if (size == PY_SSIZE_T_MAX) {
+    if ((size_t)size + 1 > PY_SSIZE_T_MAX) {
         return PyErr_NoMemory();
     }
 
@@ -156,7 +156,7 @@ PyByteArray_FromStringAndSize(const char *bytes, Py_ssize_t size)
             Py_DECREF(new);
             return PyErr_NoMemory();
         }
-        if (bytes != NULL && size > 0)
+        if (bytes != NULL)
             memcpy(new->ob_bytes, bytes, size);
         new->ob_bytes[size] = '\0';  /* Trailing null byte */
     }
@@ -280,7 +280,8 @@ PyByteArray_Concat(PyObject *a, PyObject *b)
             goto done;
     }
 
-    if (va.len > PY_SSIZE_T_MAX - vb.len) {
+    assert(va.len >= 0 && vb.len >= 0);
+    if ((size_t)va.len + (size_t)vb.len > PY_SSIZE_T_MAX) {
         PyErr_NoMemory();
         goto done;
     }
@@ -321,7 +322,8 @@ bytearray_iconcat(PyByteArrayObject *self, PyObject *other)
     }
 
     size = Py_SIZE(self);
-    if (size > PY_SSIZE_T_MAX - vo.len) {
+    assert(size >= 0 && vo.len >= 0);
+    if ((size_t)size + (size_t)vo.len > PY_SSIZE_T_MAX) {
         PyBuffer_Release(&vo);
         return PyErr_NoMemory();
     }
@@ -517,7 +519,7 @@ bytearray_setslice_linear(PyByteArrayObject *self,
         buf = PyByteArray_AS_STRING(self);
     }
     else if (growth > 0) {
-        if (Py_SIZE(self) > (Py_ssize_t)PY_SSIZE_T_MAX - growth) {
+        if ((size_t)Py_SIZE(self) + (size_t)growth > PY_SSIZE_T_MAX) {
             PyErr_NoMemory();
             return -1;
         }
@@ -1548,7 +1550,7 @@ bytearray_insert_impl(PyByteArrayObject *self, Py_ssize_t index, int item)
     Py_ssize_t n = Py_SIZE(self);
     char *buf;
 
-    if (n == PY_SSIZE_T_MAX) {
+    if ((size_t)n + 1 >= PY_SSIZE_T_MAX) {
         PyErr_SetString(PyExc_OverflowError,
                         "cannot add more objects to bytearray");
         return NULL;
@@ -1586,7 +1588,7 @@ bytearray_append_impl(PyByteArrayObject *self, int item)
 {
     Py_ssize_t n = Py_SIZE(self);
 
-    if (n == PY_SSIZE_T_MAX) {
+    if ((size_t)n + 1 > PY_SSIZE_T_MAX) {
         PyErr_SetString(PyExc_OverflowError,
                         "cannot add more objects to bytearray");
         return NULL;
@@ -1654,7 +1656,7 @@ bytearray_extend(PyByteArrayObject *self, PyObject *iterable_of_ints)
         buf[len++] = value;
         Py_DECREF(item);
 
-        if (len >= buf_size) {
+        if (len >= buf_size) { // CHECK!
             Py_ssize_t addition;
             if (len == PY_SSIZE_T_MAX) {
                 Py_DECREF(it);
@@ -1662,7 +1664,7 @@ bytearray_extend(PyByteArrayObject *self, PyObject *iterable_of_ints)
                 return PyErr_NoMemory();
             }
             addition = len >> 1;
-            if (addition > PY_SSIZE_T_MAX - len - 1)
+            if ((size_t)addition + (size_t)len + 1 > PY_SSIZE_T_MAX)
                 buf_size = PY_SSIZE_T_MAX;
             else
                 buf_size = len + addition + 1;

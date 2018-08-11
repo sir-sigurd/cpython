@@ -702,7 +702,8 @@ save_unconsumed_input(compobject *self, Py_buffer *data, int err)
             Py_ssize_t new_size, left_size;
             PyObject *new_data;
             left_size = (Byte *)data->buf + data->len - self->zst.next_in;
-            if (left_size > (PY_SSIZE_T_MAX - old_size)) {
+            assert(left_size >= 0);
+            if ((size_t)left_size + (size_t)old_size > PY_SSIZE_T_MAX) {
                 PyErr_NoMemory();
                 return -1;
             }

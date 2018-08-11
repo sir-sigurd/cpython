@@ -50,17 +50,18 @@ stringlib_expandtabs_impl(PyObject *self, int tabsize)
         if (*p == '\t') {
             if (tabsize > 0) {
                 Py_ssize_t incr = tabsize - (j % tabsize);
-                if (j > PY_SSIZE_T_MAX - incr)
+                assert(incr >= 0);
+                if ((size_t)j + (size_t)incr > PY_SSIZE_T_MAX)
                     goto overflow;
                 j += incr;
             }
         }
         else {
-            if (j > PY_SSIZE_T_MAX - 1)
+            if ((size_t)j + 1 > PY_SSIZE_T_MAX)
                 goto overflow;
             j++;
             if (*p == '\n' || *p == '\r') {
-                if (i > PY_SSIZE_T_MAX - j)
+                if ((size_t)i + (size_t)j > PY_SSIZE_T_MAX)
                     goto overflow;
                 i += j;
                 j = 0;
@@ -68,7 +69,7 @@ stringlib_expandtabs_impl(PyObject *self, int tabsize)
         }
     }
 
-    if (i > PY_SSIZE_T_MAX - j)
+    if ((size_t)i + (size_t)j > PY_SSIZE_T_MAX)
         goto overflow;
 
     /* Second pass: create output string and fill it */

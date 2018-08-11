@@ -761,12 +761,12 @@ getenvironment(PyObject* environment)
             PyErr_SetString(PyExc_ValueError, "illegal environment variable name");
             goto error;
         }
-        if (totalsize > PY_SSIZE_T_MAX - PyUnicode_GET_LENGTH(key) - 1) {
+        if ((size_t)totalsize + (size_t)PyUnicode_GET_LENGTH(key) + 1 > (size_t)PY_SSIZE_T_MAX) {
             PyErr_SetString(PyExc_OverflowError, "environment too long");
             goto error;
         }
         totalsize += PyUnicode_GET_LENGTH(key) + 1;    /* +1 for '=' */
-        if (totalsize > PY_SSIZE_T_MAX - PyUnicode_GET_LENGTH(value) - 1) {
+        if ((size_t)totalsize + (size_t)PyUnicode_GET_LENGTH(value) + 1 > (size_t)PY_SSIZE_T_MAX) {
             PyErr_SetString(PyExc_OverflowError, "environment too long");
             goto error;
         }

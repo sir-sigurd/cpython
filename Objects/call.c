@@ -1362,7 +1362,7 @@ _PyStack_UnpackDict(PyObject *const *args, Py_ssize_t nargs, PyObject *kwargs,
         return 0;
     }
 
-    if ((size_t)nargs > PY_SSIZE_T_MAX / sizeof(stack[0]) - (size_t)nkwargs) {
+    if ((size_t)nargs + (size_t)nkwargs > PY_SSIZE_T_MAX / sizeof(stack[0])) {
         PyErr_NoMemory();
         return -1;
     }

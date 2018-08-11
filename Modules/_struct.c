@@ -1257,7 +1257,7 @@ align(Py_ssize_t size, char c, const formatdef *e)
     if (e->format == c) {
         if (e->alignment && size > 0) {
             extra = (e->alignment - 1) - (size - 1) % (e->alignment);
-            if (extra > PY_SSIZE_T_MAX - size)
+            if ((size_t)size + (size_t)extra > (size_t)PY_SSIZE_T_MAX)
                 return -1;
             size += extra;
         }
@@ -1338,14 +1338,14 @@ prepare_s(PyStructObject *self)
     }
 
     /* check for overflow */
-    if ((ncodes + 1) > ((size_t)PY_SSIZE_T_MAX / sizeof(formatcode))) {
+    if (ncodes * sizeof(formatcode) > (size_t)PY_SSIZE_T_MAX - sizeof(formatcode)) {
         PyErr_NoMemory();
         return -1;
     }
 
     self->s_size = size;
     self->s_len = len;
-    codes = PyMem_MALLOC((ncodes + 1) * sizeof(formatcode));
+    codes = PyMem_MALLOC(ncodes * sizeof(formatcode) + sizeof(formatcode));
     if (codes == NULL) {
         PyErr_NoMemory();
         return -1;

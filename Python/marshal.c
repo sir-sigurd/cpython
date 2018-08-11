@@ -120,7 +120,7 @@ w_reserve(WFILE *p, Py_ssize_t needed)
     else
         delta = size + 1024;
     delta = Py_MAX(delta, needed);
-    if (delta > PY_SSIZE_T_MAX - size) {
+    if ((size_t)size + delta > PY_SSIZE_T_MAX) {
         p->error = WFERR_NOMEMORY;
         return 0;
     }

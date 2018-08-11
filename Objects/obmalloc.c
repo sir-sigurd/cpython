@@ -566,7 +566,7 @@ _PyMem_RawWcsdup(const wchar_t *str)
 {
     assert(str != NULL);
 
-    size_t len = wcslen(str);
+    size_t len = wcslen(str); // CHECK wcslen limits
     if (len > (size_t)PY_SSIZE_T_MAX / sizeof(wchar_t) - 1) {
         return NULL;
     }

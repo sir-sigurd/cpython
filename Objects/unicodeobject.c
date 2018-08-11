@@ -615,7 +615,7 @@ backslashreplace(_PyBytesWriter *writer, char *str,
             assert(ch <= MAX_UNICODE);
             incr = 2+8;
         }
-        if (size > PY_SSIZE_T_MAX - incr) {
+        if ((size_t)size + (size_t)incr > (size_t)PY_SSIZE_T_MAX) {
             PyErr_SetString(PyExc_OverflowError,
                             "encoded result is too long for a Python string");
             return NULL;
@@ -690,7 +690,7 @@ xmlcharrefreplace(_PyBytesWriter *writer, char *str,
             assert(ch <= MAX_UNICODE);
             incr = 2+7+1;
         }
-        if (size > PY_SSIZE_T_MAX - incr) {
+        if ((size_t)size + (size_t)incr > PY_SSIZE_T_MAX) {
             PyErr_SetString(PyExc_OverflowError,
                             "encoded result is too long for a Python string");
             return NULL;
@@ -912,7 +912,7 @@ resize_compact(PyObject *unicode, Py_ssize_t length)
         struct_size = sizeof(PyCompactUnicodeObject);
     share_wstr = _PyUnicode_SHARE_WSTR(unicode);
 
-    if (length > ((PY_SSIZE_T_MAX - struct_size) / char_size - 1)) {
+    if ((size_t)length + 1 > ((PY_SSIZE_T_MAX - struct_size) / (size_t)char_size)) {  // check ASM
         PyErr_NoMemory();
         return NULL;
     }
@@ -977,7 +977,7 @@ resize_inplace(PyObject *unicode, Py_ssize_t length)
         share_wstr = _PyUnicode_SHARE_WSTR(unicode);
         share_utf8 = _PyUnicode_SHARE_UTF8(unicode);
 
-        if (length > (PY_SSIZE_T_MAX / char_size - 1)) {
+        if ((size_t)length + 1 > PY_SSIZE_T_MAX / (size_t)char_size) {  // check ASM
             PyErr_NoMemory();
             return -1;
         }
@@ -1017,7 +1017,7 @@ resize_inplace(PyObject *unicode, Py_ssize_t length)
     assert(_PyUnicode_WSTR(unicode) != NULL);
 
     /* check for integer overflow */
-    if (length > PY_SSIZE_T_MAX / (Py_ssize_t)sizeof(wchar_t) - 1) {
+    if ((size_t)length + 1 > PY_SSIZE_T_MAX / (Py_ssize_t)sizeof(wchar_t)) {  // check ASM
         PyErr_NoMemory();
         return -1;
     }
@@ -1088,7 +1088,7 @@ _PyUnicode_New(Py_ssize_t length)
     }
 
     /* Ensure we won't overflow the size. */
-    if (length > ((PY_SSIZE_T_MAX / (Py_ssize_t)sizeof(Py_UNICODE)) - 1)) {
+    if ((size_t)length + 1 > PY_SSIZE_T_MAX / (Py_ssize_t)sizeof(Py_UNICODE)) {  // check ASM
         return (PyUnicodeObject *)PyErr_NoMemory();
     }
     if (length < 0) {
@@ -1283,7 +1283,7 @@ PyUnicode_New(Py_ssize_t size, Py_UCS4 maxchar)
                         "Negative size passed to PyUnicode_New");
         return NULL;
     }
-    if (size > ((PY_SSIZE_T_MAX - struct_size) / char_size - 1))
+    if (size > (PY_SSIZE_T_MAX - struct_size) / char_size - 1) // check ASM
         return PyErr_NoMemory();
 
     /* Duplicated allocation code from _PyObject_New() instead of a call to
@@ -1738,7 +1738,7 @@ _PyUnicode_Ready(PyObject *unicode)
         /* in case the native representation is 2-bytes, we need to allocate a
            new normalized 4-byte version. */
         length_wo_surrogates = _PyUnicode_WSTR_LENGTH(unicode) - num_surrogates;
-        if (length_wo_surrogates > PY_SSIZE_T_MAX / 4 - 1) {
+        if ((size_t)length_wo_surrogates + 1 > PY_SSIZE_T_MAX / 4) { // check ASM
             PyErr_NoMemory();
             return -1;
         }
@@ -3882,13 +3882,12 @@ PyUnicode_AsUnicodeAndSize(PyObject *unicode, Py_ssize_t *size)
 #endif
         }
         else {
-            if ((size_t)_PyUnicode_LENGTH(unicode) >
-                    PY_SSIZE_T_MAX / sizeof(wchar_t) - 1) {
+            if ((size_t)_PyUnicode_LENGTH(unicode) + 1 > PY_SSIZE_T_MAX / sizeof(wchar_t)) {  // check ASM
                 PyErr_NoMemory();
                 return NULL;
             }
             _PyUnicode_WSTR(unicode) = (wchar_t *) PyObject_MALLOC(sizeof(wchar_t) *
-                                                  (_PyUnicode_LENGTH(unicode) + 1));
+                                                   _PyUnicode_LENGTH(unicode) + 1);
             if (!_PyUnicode_WSTR(unicode)) {
                 PyErr_NoMemory();
                 return NULL;
@@ -4140,14 +4139,14 @@ unicode_decode_call_errorhandler_wchar(
        at the new input position), so we won't have to check space
        when there are no errors in the rest of the string) */
     requiredsize = *outpos;
-    if (requiredsize > PY_SSIZE_T_MAX - repwlen)
+    if ((size_t)requiredsize + (size_t)repwlen > PY_SSIZE_T_MAX)
         goto overflow;
     requiredsize += repwlen;
-    if (requiredsize > PY_SSIZE_T_MAX - (insize - newpos))
+    if ((size_t)requiredsize + (insize - newpos) > PY_SSIZE_T_MAX)
         goto overflow;
     requiredsize += insize - newpos;
     if (requiredsize > outsize) {
-        if (outsize <= PY_SSIZE_T_MAX/2 && requiredsize < 2*outsize)
+        if (2*(size_t)outsize <= PY_SSIZE_T_MAX && requiredsize < 2*outsize)
             requiredsize = 2*outsize;
         if (unicode_resize(output, requiredsize) < 0)
             goto onError;
@@ -5043,7 +5042,7 @@ _Py_EncodeUTF8Ex(const wchar_t *text, char **str, size_t *error_pos,
 
     assert(len >= 0);
 
-    if (len > PY_SSIZE_T_MAX / max_char_size - 1) {
+    if (len > PY_SSIZE_T_MAX / max_char_size - 1) { // check ASM
         return -1;
     }
     char *bytes;
@@ -5460,7 +5459,7 @@ _PyUnicode_EncodeUTF32(PyObject *str,
         /* four bytes are reserved for each surrogate */
         if (moreunits > 1) {
             Py_ssize_t outpos = out - (uint32_t*) PyBytes_AS_STRING(v);
-            if (moreunits >= (PY_SSIZE_T_MAX - PyBytes_GET_SIZE(v)) / 4) {
+            if (moreunits >= (PY_SSIZE_T_MAX - PyBytes_GET_SIZE(v)) / 4) { // check ASM
                 /* integer overflow */
                 PyErr_NoMemory();
                 goto error;
@@ -5704,7 +5703,8 @@ _PyUnicode_EncodeUTF16(PyObject *str,
     int native_ordering = byteorder <= 0;
 #endif
     const char *encoding;
-    Py_ssize_t nsize, pos;
+    Py_ssize_t pos;
+    size_t nsize;
     PyObject *errorHandler = NULL;
     PyObject *exc = NULL;
     PyObject *rep = NULL;
@@ -5729,11 +5729,11 @@ _PyUnicode_EncodeUTF16(PyObject *str,
             }
         }
     }
-    if (len > PY_SSIZE_T_MAX / 2 - pairs - (byteorder == 0)) {
+    nsize = (size_t)len + (size_t)pairs + (byteorder == 0);
+    if (nsize > PY_SSIZE_T_MAX / 2) { // check ASM
         return PyErr_NoMemory();
     }
-    nsize = len + pairs + (byteorder == 0);
-    v = PyBytes_FromStringAndSize(NULL, nsize * 2);
+    v = PyBytes_FromStringAndSize(NULL, (Py_ssize_t)2 * nsize);
     if (v == NULL) {
         return NULL;
     }
@@ -5812,7 +5812,7 @@ _PyUnicode_EncodeUTF16(PyObject *str,
         /* two bytes are reserved for each surrogate */
         if (moreunits > 1) {
             Py_ssize_t outpos = out - (unsigned short*) PyBytes_AS_STRING(v);
-            if (moreunits >= (PY_SSIZE_T_MAX - PyBytes_GET_SIZE(v)) / 2) {
+            if (2 * (size_t)(moreunits - 1) > PY_SSIZE_T_MAX - (size_t)PyBytes_GET_SIZE(v)) {
                 /* integer overflow */
                 PyErr_NoMemory();
                 goto error;
@@ -5837,8 +5837,9 @@ _PyUnicode_EncodeUTF16(PyObject *str,
     /* Cut back to size actually needed. This is necessary for, for example,
     encoding of a string containing isolated surrogates and the 'ignore' handler
     is used. */
+    assert((unsigned char*) out - (unsigned char*) PyBytes_AS_STRING(v) >= 0);
     nsize = (unsigned char*) out - (unsigned char*) PyBytes_AS_STRING(v);
-    if (nsize != PyBytes_GET_SIZE(v))
+    if ((Py_ssize_t)nsize != PyBytes_GET_SIZE(v))
       _PyBytes_Resize(&v, nsize);
     Py_XDECREF(errorHandler);
     Py_XDECREF(exc);
@@ -6501,11 +6502,7 @@ _PyUnicode_DecodeUnicodeInternal(const char *s,
         _Py_RETURN_UNICODE_EMPTY();
 
     _PyUnicodeWriter_Init(&writer);
-    if (size / Py_UNICODE_SIZE > PY_SSIZE_T_MAX - 1) {
-        PyErr_NoMemory();
-        goto onError;
-    }
-    writer.min_length = (size + (Py_UNICODE_SIZE - 1)) / Py_UNICODE_SIZE;
+    writer.min_length = ((size_t)size + (Py_UNICODE_SIZE - 1)) / Py_UNICODE_SIZE;
 
     end = s + size;
     while (s < end) {
@@ -7448,7 +7445,7 @@ encode_code_page_strict(UINT code_page, PyObject **outbytes,
     else {
         /* Extend string object */
         const Py_ssize_t n = PyBytes_Size(*outbytes);
-        if (outsize > PY_SSIZE_T_MAX - n) {
+        if ((size_t)n + outsize > PY_SSIZE_T_MAX) {
             PyErr_NoMemory();
             Py_DECREF(substring);
             return -1;
@@ -7550,7 +7547,7 @@ encode_code_page_errors(UINT code_page, PyObject **outbytes,
     else {
         /* Extend string object */
         Py_ssize_t n = PyBytes_Size(*outbytes);
-        if (n > PY_SSIZE_T_MAX - outsize) {
+        if ((size_t)n + outsize > PY_SSIZE_T_MAX) {
             PyErr_NoMemory();
             goto error;
         }
@@ -9909,7 +9906,7 @@ _PyUnicode_JoinArray(PyObject *separator, PyObject *const *items, Py_ssize_t seq
         if (i != 0) {
             add_sz += seplen;
         }
-        if (add_sz > (size_t)(PY_SSIZE_T_MAX - sz)) {
+        if ((size_t)sz + add_sz > (size_t)PY_SSIZE_T_MAX) {
             PyErr_SetString(PyExc_OverflowError,
                             "join() result is too long for a Python string");
             goto onError;
@@ -10083,8 +10080,8 @@ pad(PyObject *self,
     if (left == 0 && right == 0)
         return unicode_result_unchanged(self);
 
-    if (left > PY_SSIZE_T_MAX - _PyUnicode_LENGTH(self) ||
-        right > PY_SSIZE_T_MAX - (left + _PyUnicode_LENGTH(self))) {
+    if ((size_t)left + _PyUnicode_LENGTH(self) > PY_SSIZE_T_MAX ||
+        (size_t)left + _PyUnicode_LENGTH(self) + right > PY_SSIZE_T_MAX) {
         PyErr_SetString(PyExc_OverflowError, "padded string is too long");
         return NULL;
     }
@@ -11198,7 +11195,7 @@ PyUnicode_Concat(PyObject *left, PyObject *right)
 
     left_len = PyUnicode_GET_LENGTH(left);
     right_len = PyUnicode_GET_LENGTH(right);
-    if (left_len > PY_SSIZE_T_MAX - right_len) {
+    if ((size_t)right_len + left_len > PY_SSIZE_T_MAX) {
         PyErr_SetString(PyExc_OverflowError,
                         "strings are too large to concat");
         return NULL;
@@ -11256,7 +11253,7 @@ PyUnicode_Append(PyObject **p_left, PyObject *right)
 
     left_len = PyUnicode_GET_LENGTH(left);
     right_len = PyUnicode_GET_LENGTH(right);
-    if (left_len > PY_SSIZE_T_MAX - right_len) {
+    if ((size_t)right_len + left_len > PY_SSIZE_T_MAX) {
         PyErr_SetString(PyExc_OverflowError,
                         "strings are too large to concat");
         goto error;
@@ -11454,14 +11451,14 @@ unicode_expandtabs_impl(PyObject *self, int tabsize)
             found = 1;
             if (tabsize > 0) {
                 incr = tabsize - (line_pos % tabsize); /* cannot overflow */
-                if (j > PY_SSIZE_T_MAX - incr)
+                if ((size_t)incr + j > PY_SSIZE_T_MAX)
                     goto overflow;
                 line_pos += incr;
                 j += incr;
             }
         }
         else {
-            if (j > PY_SSIZE_T_MAX - 1)
+            if ((size_t)j + 1 > PY_SSIZE_T_MAX)
                 goto overflow;
             line_pos++;
             j++;
@@ -12581,7 +12578,7 @@ unicode_repr(PyObject *unicode)
             else
                 incr = 10; /* \uHHHHHHHH */
         }
-        if (osize > PY_SSIZE_T_MAX - incr) {
+        if ((size_t)osize + incr > PY_SSIZE_T_MAX) {
             PyErr_SetString(PyExc_OverflowError,
                             "string is too long to generate repr");
             return NULL;
@@ -13439,7 +13436,7 @@ _PyUnicodeWriter_PrepareInternal(_PyUnicodeWriter *writer,
     assert((maxchar > writer->maxchar && length >= 0)
            || length > 0);
 
-    if (length > PY_SSIZE_T_MAX - writer->pos) {
+    if ((size_t)writer->pos + length > PY_SSIZE_T_MAX) {
         PyErr_NoMemory();
         return -1;
     }
@@ -13450,7 +13447,7 @@ _PyUnicodeWriter_PrepareInternal(_PyUnicodeWriter *writer,
     if (writer->buffer == NULL) {
         assert(!writer->readonly);
         if (writer->overallocate
-            && newlen <= (PY_SSIZE_T_MAX - newlen / OVERALLOCATE_FACTOR)) {
+            && (size_t)newlen + newlen / OVERALLOCATE_FACTOR <= PY_SSIZE_T_MAX) {
             /* overallocate to limit the number of realloc() */
             newlen += newlen / OVERALLOCATE_FACTOR;
         }
@@ -13463,7 +13460,7 @@ _PyUnicodeWriter_PrepareInternal(_PyUnicodeWriter *writer,
     }
     else if (newlen > writer->size) {
         if (writer->overallocate
-            && newlen <= (PY_SSIZE_T_MAX - newlen / OVERALLOCATE_FACTOR)) {
+            && (size_t)newlen + newlen / OVERALLOCATE_FACTOR <= PY_SSIZE_T_MAX) {
             /* overallocate to limit the number of realloc() */
             newlen += newlen / OVERALLOCATE_FACTOR;
         }
@@ -15552,7 +15549,7 @@ PyUnicode_AsUnicodeCopy(PyObject *unicode)
     if (u == NULL)
         return NULL;
     /* Ensure we won't overflow the size. */
-    if (len > ((PY_SSIZE_T_MAX / (Py_ssize_t)sizeof(Py_UNICODE)) - 1)) {
+    if (len > (PY_SSIZE_T_MAX / (Py_ssize_t)sizeof(Py_UNICODE)) - 1) {
         PyErr_NoMemory();
         return NULL;
     }

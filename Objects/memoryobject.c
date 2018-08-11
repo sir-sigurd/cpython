@@ -1259,7 +1259,7 @@ copy_shape(Py_ssize_t *shape, const PyObject *seq, Py_ssize_t ndim,
                 "memoryview.cast(): elements of shape must be integers > 0");
             return -1;
         }
-        if (x > PY_SSIZE_T_MAX / len) {
+        if (x > PY_SSIZE_T_MAX / len) { // CHECK
             PyErr_Format(PyExc_ValueError,
                 "memoryview.cast(): product(shape) > SSIZE_MAX");
             return -1;

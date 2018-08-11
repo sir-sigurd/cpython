@@ -998,7 +998,7 @@ PyObject *PyCodec_NameReplaceErrors(PyObject *exc)
             }
             else
                 replsize = 1+1+2;
-            if (ressize > PY_SSIZE_T_MAX - replsize)
+            if ((size_t)ressize + replsize > PY_SSIZE_T_MAX)
                 break;
             ressize += replsize;
         }
