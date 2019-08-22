@@ -453,8 +453,102 @@ PyLong_FromDouble(double dval)
  * However, some other compilers warn about applying unary minus to an
  * unsigned operand.  Hence the weird "0-".
  */
-#define PY_ABS_LONG_MIN         (0-(unsigned long)LONG_MIN)
-#define PY_ABS_SSIZE_T_MIN      (0-(size_t)PY_SSIZE_T_MIN)
+
+static inline intmax_t
+long_as_int_and_overflow(PyObject *vv, int *overflow, const unsigned SIZE)
+{
+    const unsigned SIZE_BITS = SIZE * CHAR_BIT;
+    const intmax_t MAX = (((UINTMAX_C(1) << (SIZE_BITS - 2)) - 1) << 1) + 1;
+    const uintmax_t U_MAX = ((uintmax_t)MAX << 1) + 1;
+    const intmax_t MIN = -MAX - 1;
+    const uintmax_t ABS_MIN = (uintmax_t)MAX + 1;
+
+    *overflow = 0;
+
+    if (vv == NULL) {
+        PyErr_BadInternalCall();
+        return -1;
+    }
+
+    PyLongObject *v;
+    int do_decref = 0; /* if nb_int was called */
+
+    if (PyLong_Check(vv)) {
+        v = (PyLongObject *)vv;
+    }
+    else {
+        v = (PyLongObject *)_PyLong_FromNbIndexOrNbInt(vv);
+        if (v == NULL) {
+            return -1;
+        }
+        do_decref = 1;
+    }
+
+    intmax_t res = -1;
+    Py_ssize_t i = Py_SIZE(v);
+    switch (i) {
+    case -1:
+        res = -(sdigit)v->ob_digit[0]; goto exit;
+    case 0:
+        res = 0; goto exit;
+    case 1:
+        res = v->ob_digit[0]; goto exit;
+    }
+
+    int sign = 1;
+    if (i < 0) {
+        sign = -1;
+        i = -(i);
+    }
+    const size_t size = i;
+    uintmax_t x = v->ob_digit[--i];
+    while (i > 0) {
+        if (size - i == SIZE_BITS / PyLong_SHIFT) {
+            if (x > U_MAX >> PyLong_SHIFT) {
+                goto overflow;
+            }
+            x = (x << PyLong_SHIFT) | v->ob_digit[--i];
+            if (i) {
+                goto overflow;
+            }
+            break;
+        }
+        x = (x << PyLong_SHIFT) | v->ob_digit[--i];
+    }
+    /* Haven't lost any bits, but casting to long requires extra
+     * care (see comment above).
+     */
+    if (x <= (uintmax_t)MAX) {
+        res = (intmax_t)x * sign;
+    }
+    else if (sign < 0 && x == ABS_MIN) {
+        res = MIN;
+    }
+    else {
+  overflow:
+        *overflow = sign;
+        /* res is already set to -1 */
+    }
+  exit:
+    if (do_decref) {
+        Py_DECREF(v);
+    }
+    return res;
+}
+
+static inline intmax_t
+long_as_int(PyObject *obj, const unsigned SIZE, const char* overflow_msg)
+{
+    int overflow;
+    intmax_t result = long_as_int_and_overflow(obj, &overflow, SIZE);
+    if (overflow) {
+        /* XXX: could be cute and give a different
+           message for overflow == -1 */
+        PyErr_SetString(PyExc_OverflowError, overflow_msg);
+        return -1;
+    }
+    return result;
+}
 
 /* Get a C long int from an int object or any object that has an __int__
    method.
@@ -469,78 +563,18 @@ PyLong_FromDouble(double dval)
 long
 PyLong_AsLongAndOverflow(PyObject *vv, int *overflow)
 {
-    /* This version by Tim Peters */
-    PyLongObject *v;
-    unsigned long x, prev;
-    long res;
-    Py_ssize_t i;
-    int sign;
-    int do_decref = 0; /* if nb_int was called */
-
-    *overflow = 0;
-    if (vv == NULL) {
-        PyErr_BadInternalCall();
-        return -1;
-    }
-
-    if (PyLong_Check(vv)) {
-        v = (PyLongObject *)vv;
-    }
-    else {
-        v = (PyLongObject *)_PyLong_FromNbIndexOrNbInt(vv);
-        if (v == NULL)
-            return -1;
-        do_decref = 1;
-    }
-
-    res = -1;
-    i = Py_SIZE(v);
-
-    switch (i) {
-    case -1:
-        res = -(sdigit)v->ob_digit[0];
-        break;
-    case 0:
-        res = 0;
-        break;
-    case 1:
-        res = v->ob_digit[0];
-        break;
-    default:
-        sign = 1;
-        x = 0;
-        if (i < 0) {
-            sign = -1;
-            i = -(i);
-        }
-        while (--i >= 0) {
-            prev = x;
-            x = (x << PyLong_SHIFT) | v->ob_digit[i];
-            if ((x >> PyLong_SHIFT) != prev) {
-                *overflow = sign;
-                goto exit;
-            }
-        }
-        /* Haven't lost any bits, but casting to long requires extra
-         * care (see comment above).
-         */
-        if (x <= (unsigned long)LONG_MAX) {
-            res = (long)x * sign;
-        }
-        else if (sign < 0 && x == PY_ABS_LONG_MIN) {
-            res = LONG_MIN;
-        }
-        else {
-            *overflow = sign;
-            /* res is already set to -1 */
-        }
-    }
-  exit:
-    if (do_decref) {
-        Py_DECREF(v);
-    }
-    return res;
+    return long_as_int_and_overflow(vv, overflow, sizeof(long));
 }
+
+/* Same as above, but for long long. */
+
+long long
+PyLong_AsLongLongAndOverflow(PyObject *vv, int *overflow)
+{
+    return long_as_int_and_overflow(vv, overflow, sizeof(long long));
+}
+
+#define LONG_AS_INT(o, type) long_as_int(o, sizeof(type), "Python int too large to convert to C " #type)
 
 /* Get a C long int from an int object or any object that has an __int__
    method.  Return -1 and set an error if overflow occurs. */
@@ -548,33 +582,23 @@ PyLong_AsLongAndOverflow(PyObject *vv, int *overflow)
 long
 PyLong_AsLong(PyObject *obj)
 {
-    int overflow;
-    long result = PyLong_AsLongAndOverflow(obj, &overflow);
-    if (overflow) {
-        /* XXX: could be cute and give a different
-           message for overflow == -1 */
-        PyErr_SetString(PyExc_OverflowError,
-                        "Python int too large to convert to C long");
-    }
-    return result;
+    return LONG_AS_INT(obj, long);
 }
 
-/* Get a C int from an int object or any object that has an __int__
-   method.  Return -1 and set an error if overflow occurs. */
+/* Same as above, but for long long. */
+
+long long
+PyLong_AsLongLong(PyObject *vv)
+{
+    return LONG_AS_INT(vv, long long);
+}
+
+/* Same as above, but for int. */
 
 int
 _PyLong_AsInt(PyObject *obj)
 {
-    int overflow;
-    long result = PyLong_AsLongAndOverflow(obj, &overflow);
-    if (overflow || result > INT_MAX || result < INT_MIN) {
-        /* XXX: could be cute and give a different
-           message for overflow == -1 */
-        PyErr_SetString(PyExc_OverflowError,
-                        "Python int too large to convert to C int");
-        return -1;
-    }
-    return (int)result;
+    return LONG_AS_INT(obj, int);
 }
 
 /* Get a Py_ssize_t from an int object.
@@ -582,11 +606,6 @@ _PyLong_AsInt(PyObject *obj)
 
 Py_ssize_t
 PyLong_AsSsize_t(PyObject *vv) {
-    PyLongObject *v;
-    size_t x, prev;
-    Py_ssize_t i;
-    int sign;
-
     if (vv == NULL) {
         PyErr_BadInternalCall();
         return -1;
@@ -596,40 +615,7 @@ PyLong_AsSsize_t(PyObject *vv) {
         return -1;
     }
 
-    v = (PyLongObject *)vv;
-    i = Py_SIZE(v);
-    switch (i) {
-    case -1: return -(sdigit)v->ob_digit[0];
-    case 0: return 0;
-    case 1: return v->ob_digit[0];
-    }
-    sign = 1;
-    x = 0;
-    if (i < 0) {
-        sign = -1;
-        i = -(i);
-    }
-    while (--i >= 0) {
-        prev = x;
-        x = (x << PyLong_SHIFT) | v->ob_digit[i];
-        if ((x >> PyLong_SHIFT) != prev)
-            goto overflow;
-    }
-    /* Haven't lost any bits, but casting to a signed type requires
-     * extra care (see comment above).
-     */
-    if (x <= (size_t)PY_SSIZE_T_MAX) {
-        return (Py_ssize_t)x * sign;
-    }
-    else if (sign < 0 && x == PY_ABS_SSIZE_T_MIN) {
-        return PY_SSIZE_T_MIN;
-    }
-    /* else overflow */
-
-  overflow:
-    PyErr_SetString(PyExc_OverflowError,
-                    "Python int too large to convert to C ssize_t");
-    return -1;
+    return LONG_AS_INT(vv, Py_ssize_t);
 }
 
 /* Get a C unsigned long int from an int object.
@@ -1133,8 +1119,6 @@ PyLong_AsVoidPtr(PyObject *vv)
  * rewritten to use the newer PyLong_{As,From}ByteArray API.
  */
 
-#define PY_ABS_LLONG_MIN (0-(unsigned long long)PY_LLONG_MIN)
-
 /* Create a new int object from a C long long int. */
 
 PyObject *
@@ -1276,58 +1260,6 @@ PyLong_FromSize_t(size_t ival)
     return (PyObject *)v;
 }
 
-/* Get a C long long int from an int object or any object that has an
-   __int__ method.  Return -1 and set an error if overflow occurs. */
-
-long long
-PyLong_AsLongLong(PyObject *vv)
-{
-    PyLongObject *v;
-    long long bytes;
-    int res;
-    int do_decref = 0; /* if nb_int was called */
-
-    if (vv == NULL) {
-        PyErr_BadInternalCall();
-        return -1;
-    }
-
-    if (PyLong_Check(vv)) {
-        v = (PyLongObject *)vv;
-    }
-    else {
-        v = (PyLongObject *)_PyLong_FromNbIndexOrNbInt(vv);
-        if (v == NULL)
-            return -1;
-        do_decref = 1;
-    }
-
-    res = 0;
-    switch(Py_SIZE(v)) {
-    case -1:
-        bytes = -(sdigit)v->ob_digit[0];
-        break;
-    case 0:
-        bytes = 0;
-        break;
-    case 1:
-        bytes = v->ob_digit[0];
-        break;
-    default:
-        res = _PyLong_AsByteArray((PyLongObject *)v, (unsigned char *)&bytes,
-                                  SIZEOF_LONG_LONG, PY_LITTLE_ENDIAN, 1);
-    }
-    if (do_decref) {
-        Py_DECREF(v);
-    }
-
-    /* Plan 9 can't handle long long in ? : expressions */
-    if (res < 0)
-        return (long long)-1;
-    else
-        return bytes;
-}
-
 /* Get a C unsigned long long int from an int object.
    Return -1 and set an error if overflow occurs. */
 
@@ -1418,92 +1350,6 @@ PyLong_AsUnsignedLongLongMask(PyObject *op)
     val = _PyLong_AsUnsignedLongLongMask((PyObject *)lo);
     Py_DECREF(lo);
     return val;
-}
-
-/* Get a C long long int from an int object or any object that has an
-   __int__ method.
-
-   On overflow, return -1 and set *overflow to 1 or -1 depending on the sign of
-   the result.  Otherwise *overflow is 0.
-
-   For other errors (e.g., TypeError), return -1 and set an error condition.
-   In this case *overflow will be 0.
-*/
-
-long long
-PyLong_AsLongLongAndOverflow(PyObject *vv, int *overflow)
-{
-    /* This version by Tim Peters */
-    PyLongObject *v;
-    unsigned long long x, prev;
-    long long res;
-    Py_ssize_t i;
-    int sign;
-    int do_decref = 0; /* if nb_int was called */
-
-    *overflow = 0;
-    if (vv == NULL) {
-        PyErr_BadInternalCall();
-        return -1;
-    }
-
-    if (PyLong_Check(vv)) {
-        v = (PyLongObject *)vv;
-    }
-    else {
-        v = (PyLongObject *)_PyLong_FromNbIndexOrNbInt(vv);
-        if (v == NULL)
-            return -1;
-        do_decref = 1;
-    }
-
-    res = -1;
-    i = Py_SIZE(v);
-
-    switch (i) {
-    case -1:
-        res = -(sdigit)v->ob_digit[0];
-        break;
-    case 0:
-        res = 0;
-        break;
-    case 1:
-        res = v->ob_digit[0];
-        break;
-    default:
-        sign = 1;
-        x = 0;
-        if (i < 0) {
-            sign = -1;
-            i = -(i);
-        }
-        while (--i >= 0) {
-            prev = x;
-            x = (x << PyLong_SHIFT) + v->ob_digit[i];
-            if ((x >> PyLong_SHIFT) != prev) {
-                *overflow = sign;
-                goto exit;
-            }
-        }
-        /* Haven't lost any bits, but casting to long requires extra
-         * care (see comment above).
-         */
-        if (x <= (unsigned long long)PY_LLONG_MAX) {
-            res = (long long)x * sign;
-        }
-        else if (sign < 0 && x == PY_ABS_LLONG_MIN) {
-            res = PY_LLONG_MIN;
-        }
-        else {
-            *overflow = sign;
-            /* res is already set to -1 */
-        }
-    }
-  exit:
-    if (do_decref) {
-        Py_DECREF(v);
-    }
-    return res;
 }
 
 int
