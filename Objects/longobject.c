@@ -698,29 +698,37 @@ PyLong_AsUnsignedLongLong(PyObject *vv)
     return LONG_AS_UINT(vv, unsigned long long);
 }
 
-/* Get a C unsigned long int from an int object, ignoring the high bits.
-   Returns -1 and sets an error condition if an error occurs. */
-
-static unsigned long
-_PyLong_AsUnsignedLongMask(PyObject *vv)
+inline static uintmax_t
+long_as_uint_mask(const unsigned SIZE_BITS, PyObject *obj)
 {
-    PyLongObject *v;
-    unsigned long x;
-    Py_ssize_t i;
-    int sign;
+    const intmax_t MAX = (((UINTMAX_C(1) << (SIZE_BITS - 2)) - 1) << 1) + 1;
+    const uintmax_t U_MAX = ((uintmax_t)MAX << 1) + 1;
 
-    if (vv == NULL || !PyLong_Check(vv)) {
+    if (obj == NULL) {
         PyErr_BadInternalCall();
-        return (unsigned long) -1;
+        return -1;
     }
-    v = (PyLongObject *)vv;
-    i = Py_SIZE(v);
-    switch (i) {
+
+    PyLongObject *v;
+    int do_decref = 0; /* if nb_int was called */
+
+    if (PyLong_Check(obj)) {
+        v = (PyLongObject *)obj;
+    }
+    else {
+        v = (PyLongObject *)_PyLong_FromNbIndexOrNbInt(obj);
+        if (v == NULL) {
+            return U_MAX;
+        }
+        do_decref = 1;
+    }
+    Py_ssize_t i = Py_SIZE(v);
+    switch(i) {
     case 0: return 0;
     case 1: return v->ob_digit[0];
     }
-    sign = 1;
-    x = 0;
+    int sign = 1;
+    uintmax_t x = 0;
     if (i < 0) {
         sign = -1;
         i = -i;
@@ -728,31 +736,27 @@ _PyLong_AsUnsignedLongMask(PyObject *vv)
     while (--i >= 0) {
         x = (x << PyLong_SHIFT) | v->ob_digit[i];
     }
+    if (do_decref) {
+        Py_DECREF(v);
+    }
     return x * sign;
 }
+
+/* Get a C unsigned long int from an int object, ignoring the high bits.
+   Returns -1 and sets an error condition if an error occurs. */
 
 unsigned long
 PyLong_AsUnsignedLongMask(PyObject *op)
 {
-    PyLongObject *lo;
-    unsigned long val;
+    return long_as_uint_mask(sizeof(unsigned long) * CHAR_BIT, op);
+}
 
-    if (op == NULL) {
-        PyErr_BadInternalCall();
-        return (unsigned long)-1;
-    }
+/* Same as above, but for unsigned long long. */
 
-    if (PyLong_Check(op)) {
-        return _PyLong_AsUnsignedLongMask(op);
-    }
-
-    lo = (PyLongObject *)_PyLong_FromNbIndexOrNbInt(op);
-    if (lo == NULL)
-        return (unsigned long)-1;
-
-    val = _PyLong_AsUnsignedLongMask((PyObject *)lo);
-    Py_DECREF(lo);
-    return val;
+unsigned long long
+PyLong_AsUnsignedLongLongMask(PyObject *vv)
+{
+    return long_as_uint_mask(sizeof(unsigned long long) * CHAR_BIT, vv);
 }
 
 int
@@ -1251,63 +1255,6 @@ PyLong_FromSize_t(size_t ival)
         }
     }
     return (PyObject *)v;
-}
-
-/* Get a C unsigned long int from an int object, ignoring the high bits.
-   Returns -1 and sets an error condition if an error occurs. */
-
-static unsigned long long
-_PyLong_AsUnsignedLongLongMask(PyObject *vv)
-{
-    PyLongObject *v;
-    unsigned long long x;
-    Py_ssize_t i;
-    int sign;
-
-    if (vv == NULL || !PyLong_Check(vv)) {
-        PyErr_BadInternalCall();
-        return (unsigned long long) -1;
-    }
-    v = (PyLongObject *)vv;
-    switch(Py_SIZE(v)) {
-    case 0: return 0;
-    case 1: return v->ob_digit[0];
-    }
-    i = Py_SIZE(v);
-    sign = 1;
-    x = 0;
-    if (i < 0) {
-        sign = -1;
-        i = -i;
-    }
-    while (--i >= 0) {
-        x = (x << PyLong_SHIFT) | v->ob_digit[i];
-    }
-    return x * sign;
-}
-
-unsigned long long
-PyLong_AsUnsignedLongLongMask(PyObject *op)
-{
-    PyLongObject *lo;
-    unsigned long long val;
-
-    if (op == NULL) {
-        PyErr_BadInternalCall();
-        return (unsigned long long)-1;
-    }
-
-    if (PyLong_Check(op)) {
-        return _PyLong_AsUnsignedLongLongMask(op);
-    }
-
-    lo = (PyLongObject *)_PyLong_FromNbIndexOrNbInt(op);
-    if (lo == NULL)
-        return (unsigned long long)-1;
-
-    val = _PyLong_AsUnsignedLongLongMask((PyObject *)lo);
-    Py_DECREF(lo);
-    return val;
 }
 
 int
