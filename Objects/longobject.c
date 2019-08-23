@@ -525,7 +525,6 @@ long_as_int_and_overflow(PyObject *vv, int *overflow, const unsigned SIZE)
         sign = -1;
         i = -(i);
     }
-    //~ int o = 0;
     uintmax_t bits = long_get_bits(SIZE_BITS, i, v->ob_digit, overflow);
     if (*overflow) {
         goto overflow;
@@ -728,13 +727,13 @@ long_as_uint_mask(const unsigned SIZE_BITS, PyObject *obj)
     case 1: return v->ob_digit[0];
     }
     int sign = 1;
-    uintmax_t x = 0;
     if (i < 0) {
         sign = -1;
         i = -i;
     }
-    while (--i >= 0) {
-        x = (x << PyLong_SHIFT) | v->ob_digit[i];
+    uintmax_t x = 0;
+    while (i > 0) {
+        x = (x << PyLong_SHIFT) | v->ob_digit[--i];
     }
     if (do_decref) {
         Py_DECREF(v);
