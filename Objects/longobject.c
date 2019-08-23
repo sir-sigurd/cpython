@@ -502,18 +502,17 @@ long_as_int_and_overflow(PyObject *vv, int *overflow, const unsigned SIZE)
     }
     const size_t size = i;
     uintmax_t x = v->ob_digit[--i];
-    while (i > 0) {
-        if (size - i == SIZE_BITS / PyLong_SHIFT) {
-            if (x > U_MAX >> PyLong_SHIFT) {
-                goto overflow;
-            }
-            x = (x << PyLong_SHIFT) | v->ob_digit[--i];
-            if (i) {
-                goto overflow;
-            }
-            break;
+    while (size - i < SIZE_BITS / PyLong_SHIFT && i > 0) {
+        x = (x << PyLong_SHIFT) | v->ob_digit[--i];
+    }
+    if (i > 0) {
+        if (x > U_MAX >> PyLong_SHIFT) {
+            goto overflow;
         }
         x = (x << PyLong_SHIFT) | v->ob_digit[--i];
+    }
+    if (i > 0) {
+        goto overflow;
     }
     /* Haven't lost any bits, but casting to long requires extra
      * care (see comment above).
