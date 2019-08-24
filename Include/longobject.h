@@ -23,6 +23,7 @@ PyAPI_FUNC(PyObject *) PyLong_FromDouble(double);
 PyAPI_FUNC(long) PyLong_AsLong(PyObject *);
 PyAPI_FUNC(long) PyLong_AsLongAndOverflow(PyObject *, int *);
 PyAPI_FUNC(Py_ssize_t) PyLong_AsSsize_t(PyObject *);
+PyAPI_FUNC(Py_ssize_t) _PyLong_AsContainerIndex(PyObject *);
 PyAPI_FUNC(size_t) PyLong_AsSize_t(PyObject *);
 PyAPI_FUNC(unsigned long) PyLong_AsUnsignedLong(PyObject *);
 PyAPI_FUNC(unsigned long) PyLong_AsUnsignedLongMask(PyObject *);

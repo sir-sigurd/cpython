@@ -1654,9 +1654,12 @@ static PyObject*
 bytes_subscript(PyBytesObject* self, PyObject* item)
 {
     if (PyIndex_Check(item)) {
-        Py_ssize_t i = PyNumber_AsSsize_t(item, PyExc_IndexError);
-        if (i == -1 && PyErr_Occurred())
+        PyObject *value = PyNumber_Index(item);
+        if (value == NULL) {
             return NULL;
+        }
+        Py_ssize_t i = _PyLong_AsContainerIndex(value);
+        Py_DECREF(value);
         if (i < 0)
             i += PyBytes_GET_SIZE(self);
         if (i < 0 || i >= PyBytes_GET_SIZE(self)) {

@@ -638,6 +638,33 @@ PyLong_AsSsize_t(PyObject *obj) {
     return LONG_AS_INT(Py_ssize_t, obj);
 }
 
+/*
+ * Python containers have at most PY_SSIZE_T_MAX items, so
+ * indices for such containers are limited by this range:
+ * -PY_SSIZE_T_MAX <= index && index < PY_SSIZE_T_MAX. If pylong value
+ * doens't fit in this range, return PY_SSIZE_T_MAX.
+ */
+
+Py_ssize_t
+_PyLong_AsContainerIndex(PyObject *obj) {
+    assert(obj != NULL);
+    assert(PyLong_Check(obj));
+
+    PyLongObject *v = (PyLongObject *)obj;
+    Py_ssize_t i = Py_SIZE(v);
+    int sign = 1;
+    if (i < 0) {
+        sign = -1;
+        i = -i;
+    }
+    int overflow;
+    uintmax_t bits = long_get_nbits(TYPE_BITS(Py_ssize_t) - 1, i, v->ob_digit, &overflow);
+    if (overflow) {
+        return PY_SSIZE_T_MAX;
+    }
+    return (intmax_t)bits * sign;
+}
+
 inline static uintmax_t
 long_as_uint(const unsigned NBITS, PyObject *obj, const char* neg_msg, const char* overflow_msg)
 {
