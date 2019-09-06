@@ -3277,7 +3277,7 @@ long_add(PyLongObject *a, PyLongObject *b)
         else
             z = x_add(a, b);
     }
-    return (PyObject *)z;
+    return (PyObject *)maybe_small_long(z);
 }
 
 static PyObject *
@@ -3306,7 +3306,7 @@ long_sub(PyLongObject *a, PyLongObject *b)
         else
             z = x_sub(a, b);
     }
-    return (PyObject *)z;
+    return (PyObject *)maybe_small_long(z);
 }
 
 /* Grade school multiplication, ignoring the signs.
