@@ -253,34 +253,59 @@ _PyLong_FromNbIndexOrNbInt(PyObject *integral)
     return result;
 }
 
-
-/* Allocate a new int object with size digits.
-   Return NULL and set exception if we run out of memory. */
-
 #define MAX_LONG_DIGITS \
     ((PY_SSIZE_T_MAX - offsetof(PyLongObject, ob_digit))/sizeof(digit))
 
-PyLongObject *
-_PyLong_New(Py_ssize_t size)
+/* Allocate a new int object with size digits.
+   Return NULL and set exception if we run out of memory.
+   This function must be used only when it's known that
+   0 <= size && size <= MAX_LONG_DIGITS, for example when it's
+   created from C ints. */
+
+static PyLongObject *
+_pylong_new(Py_ssize_t size)
 {
-    PyLongObject *result;
+    // This assumption allows to bypass size check of PyObject_MALLOC(),
+    // when it's inlined here with LTO.
+    _Py_ASSUME((size_t)size <= MAX_LONG_DIGITS);
+
     /* Number of bytes needed is: offsetof(PyLongObject, ob_digit) +
        sizeof(digit)*size.  Previous incarnations of this code used
        sizeof(PyVarObject) instead of the offsetof, but this risks being
        incorrect in the presence of padding between the PyVarObject header
        and the digits. */
-    if (size > (Py_ssize_t)MAX_LONG_DIGITS) {
-        PyErr_SetString(PyExc_OverflowError,
-                        "too many digits in integer");
-        return NULL;
-    }
-    result = PyObject_MALLOC(offsetof(PyLongObject, ob_digit) +
-                             size*sizeof(digit));
+    PyLongObject *result = PyObject_MALLOC(offsetof(PyLongObject, ob_digit) +
+                                           size*sizeof(digit));
     if (!result) {
         PyErr_NoMemory();
         return NULL;
     }
     return (PyLongObject*)PyObject_INIT_VAR(result, &PyLong_Type, size);
+}
+
+// This function is needed only for demonstration. It's the same as
+// _pylong_new, but without _Py_ASSUME().
+PyLongObject *
+_PyLong_New_no_size_check(Py_ssize_t size)
+{
+    PyLongObject *result = PyObject_MALLOC(offsetof(PyLongObject, ob_digit) +
+                                           size*sizeof(digit));
+    if (!result) {
+        PyErr_NoMemory();
+        return NULL;
+    }
+    return (PyLongObject*)PyObject_INIT_VAR(result, &PyLong_Type, size);
+}
+
+PyLongObject *
+_PyLong_New(Py_ssize_t size)
+{
+    if (size > (Py_ssize_t)MAX_LONG_DIGITS) {
+        PyErr_SetString(PyExc_OverflowError,
+                        "too many digits in integer");
+        return NULL;
+    }
+    return _pylong_new(size);
 }
 
 PyObject *
@@ -299,7 +324,9 @@ _PyLong_Copy(PyLongObject *src)
             return get_small_int(ival);
         }
     }
-    result = _PyLong_New(i);
+    // We can use _pylong_new() here because the size of copied
+    // long was checked when that long was created.
+    result = _pylong_new(i);
     if (result != NULL) {
         Py_SIZE(result) = Py_SIZE(src);
         while (--i >= 0)
@@ -336,7 +363,7 @@ PyLong_FromLong(long ival)
 
     /* Fast path for single-digit ints */
     if (!(abs_ival >> PyLong_SHIFT)) {
-        v = _PyLong_New(1);
+        v = _pylong_new(1);
         if (v) {
             Py_SIZE(v) = sign;
             v->ob_digit[0] = Py_SAFE_DOWNCAST(
@@ -348,7 +375,7 @@ PyLong_FromLong(long ival)
 #if PyLong_SHIFT==15
     /* 2 digits */
     if (!(abs_ival >> 2*PyLong_SHIFT)) {
-        v = _PyLong_New(2);
+        v = _pylong_new(2);
         if (v) {
             Py_SIZE(v) = 2*sign;
             v->ob_digit[0] = Py_SAFE_DOWNCAST(
@@ -366,7 +393,7 @@ PyLong_FromLong(long ival)
         ++ndigits;
         t >>= PyLong_SHIFT;
     }
-    v = _PyLong_New(ndigits);
+    v = _pylong_new(ndigits);
     if (v != NULL) {
         digit *p = v->ob_digit;
         Py_SIZE(v) = ndigits*sign;
@@ -392,7 +419,7 @@ PyLong_FromLong(long ival)
             ++ndigits; \
             t >>= PyLong_SHIFT; \
         } \
-        PyLongObject *v = _PyLong_New(ndigits); \
+        PyLongObject *v = _pylong_new(ndigits); \
         if (v == NULL) { \
             return NULL; \
         } \
@@ -455,7 +482,7 @@ PyLong_FromDouble(double dval)
     if (expo <= 0)
         return PyLong_FromLong(0L);
     ndig = (expo-1) / PyLong_SHIFT + 1; /* Number of 'digits' in result */
-    v = _PyLong_New(ndig);
+    v = _pylong_new(ndig);
     if (v == NULL)
         return NULL;
     frac = ldexp(frac, (expo-1) % PyLong_SHIFT + 1);
@@ -1195,7 +1222,7 @@ PyLong_FromLongLong(long long ival)
         ++ndigits;
         t >>= PyLong_SHIFT;
     }
-    v = _PyLong_New(ndigits);
+    v = _pylong_new(ndigits);
     if (v != NULL) {
         digit *p = v->ob_digit;
         Py_SIZE(v) = negative ? -ndigits : ndigits;
@@ -1238,7 +1265,7 @@ PyLong_FromSsize_t(Py_ssize_t ival)
         ++ndigits;
         t >>= PyLong_SHIFT;
     }
-    v = _PyLong_New(ndigits);
+    v = _pylong_new(ndigits);
     if (v != NULL) {
         digit *p = v->ob_digit;
         Py_SIZE(v) = negative ? -ndigits : ndigits;
@@ -1706,7 +1733,7 @@ divrem1(PyLongObject *a, digit n, digit *prem)
     PyLongObject *z;
 
     assert(n > 0 && n <= PyLong_MASK);
-    z = _PyLong_New(size);
+    z = _pylong_new(size);
     if (z == NULL)
         return NULL;
     *prem = inplace_divrem1(z->ob_digit, a->ob_digit, size, n);
@@ -2771,7 +2798,7 @@ x_divrem(PyLongObject *v1, PyLongObject *w1, PyLongObject **prem)
         *prem = NULL;
         return NULL;
     }
-    w = _PyLong_New(size_w);
+    w = _pylong_new(size_w);
     if (w == NULL) {
         Py_DECREF(v);
         *prem = NULL;
@@ -2793,7 +2820,7 @@ x_divrem(PyLongObject *v1, PyLongObject *w1, PyLongObject **prem)
        at most (and usually exactly) k = size_v - size_w digits. */
     k = size_v - size_w;
     assert(k >= 0);
-    a = _PyLong_New(k);
+    a = _pylong_new(k);
     if (a == NULL) {
         Py_DECREF(w);
         Py_DECREF(v);
@@ -3642,7 +3669,7 @@ k_lopsided_mul(PyLongObject *a, PyLongObject *b)
     memset(ret->ob_digit, 0, Py_SIZE(ret) * sizeof(digit));
 
     /* Successive slices of b are copied into bslice. */
-    bslice = _PyLong_New(asize);
+    bslice = _pylong_new(asize);
     if (bslice == NULL)
         goto fail;
 
@@ -4549,7 +4576,7 @@ long_rshift1(PyLongObject *a, Py_ssize_t wordshift, digit remshift)
         hishift = PyLong_SHIFT - remshift;
         lomask = ((digit)1 << hishift) - 1;
         himask = PyLong_MASK ^ lomask;
-        z = _PyLong_New(newsize);
+        z = _pylong_new(newsize);
         if (z == NULL)
             return NULL;
         for (i = 0, j = wordshift; i < newsize; i++, j++) {
@@ -4706,7 +4733,7 @@ long_bitwise(PyLongObject *a,
     size_a = Py_ABS(Py_SIZE(a));
     nega = Py_SIZE(a) < 0;
     if (nega) {
-        z = _PyLong_New(size_a);
+        z = _pylong_new(size_a);
         if (z == NULL)
             return NULL;
         v_complement(z->ob_digit, a->ob_digit, size_a);
@@ -4720,7 +4747,7 @@ long_bitwise(PyLongObject *a,
     size_b = Py_ABS(Py_SIZE(b));
     negb = Py_SIZE(b) < 0;
     if (negb) {
-        z = _PyLong_New(size_b);
+        z = _pylong_new(size_b);
         if (z == NULL) {
             Py_DECREF(a);
             return NULL;

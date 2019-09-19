@@ -128,4 +128,17 @@
 #define Py_UNREACHABLE() abort()
 #endif
 
+
+#ifdef Py_DEBUG
+#   define _Py_ASSUME(cond) (assert(cond))
+#else
+#   if defined(_MSC_VER)
+#       define _Py_ASSUME(cond) (__assume(cond))
+#   elif defined(__GNUC__)
+#       define _Py_ASSUME(cond) (cond? (void)0: __builtin_unreachable())
+#   else
+#       define _Py_ASSUME(cond) ((void)0);
+#   endif
+#endif
+
 #endif /* Py_PYMACRO_H */
